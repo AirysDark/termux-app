@@ -12,14 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      # 1️⃣ Checkout repository
+      # 1️⃣ Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       # 2️⃣ Prepare extraction folders
-      - name: Create extraction folders
+      - name: Create extraction folder
         run: |
           mkdir -p extracted-termux/terminal-emulator
           mkdir -p extracted-termux/terminal-view
@@ -28,123 +28,49 @@ jobs:
           mkdir -p extracted-termux/res
           mkdir -p extracted-termux/logs
 
-      # 3️⃣ Copy Terminal Emulator
+      # 3️⃣ Extract Terminal Emulator
       - name: Copy Terminal Emulator
         run: |
           cp -r terminal-emulator/src/main/java/com/termux/terminal extracted-termux/terminal-emulator/
           cp -r terminal-emulator/src/main/jni extracted-termux/terminal-emulator/jni
 
-      # 4️⃣ Copy Terminal View
+      # 4️⃣ Extract Terminal View
       - name: Copy Terminal View
         run: |
           cp -r terminal-view/src/main/java/com/termux/view extracted-termux/terminal-view/view
           cp -r terminal-view/src/main/res extracted-termux/terminal-view/res
 
-      # 5️⃣ Copy Termux App (Activities, Fragments, Settings)
+      # 5️⃣ Extract Termux App (Activities, Fragments, Settings)
       - name: Copy Termux App
         run: |
           cp -r app/src/main/java/com/termux/app extracted-termux/app/com/termux/app
           cp -r app/src/main/res extracted-termux/app/res
 
-      # 6️⃣ Copy Shared Libraries
+      # 6️⃣ Extract Shared Libraries
       - name: Copy Shared Libraries
         run: |
           cp -r termux-shared/src/main/java/com/termux/shared extracted-termux/shared
 
-      # 7️⃣ Copy all resources
-      - name: Copy resources
+      # 7️⃣ Copy Additional Resources
+      - name: Copy all app resources
         run: |
           cp -r app/src/main/res/* extracted-termux/res/
 
-      # 8️⃣ Verify critical folders and XMLs
-      - name: Verify critical folders and XMLs
-        run: |
-          REQUIRED_FOLDERS=("extracted-termux/terminal-emulator/terminal" "extracted-termux/terminal-view/view" "extracted-termux/app/com/termux/app" "extracted-termux/shared")
-          MISSING=()
-          for f in "${REQUIRED_FOLDERS[@]}"; do
-            if [ ! -d "$f" ]; then
-              echo "❌ Missing critical folder: $f"
-              MISSING+=("$f")
-            fi
-          done
-
-          XML_COUNT=$(find extracted-termux/res -name "*.xml" | wc -l)
-          echo "✅ Found $XML_COUNT XML layout files"
-
-          if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "⚠️ Some critical folders are missing: ${MISSING[@]}"
-          else
-            echo "✅ All critical folders exist."
-          fi
-
-      # 9️⃣ Scan Java/JS/TS functions
-      - name: Scan functions/methods
-        run: |
-          python3 << 'EOF'
-import os, re, json
-
-PORT_DIR = "extracted-termux"
-OUTPUT_JSON = os.path.join(PORT_DIR, "logs/function_scan.json")
-FUNCTION_EXTS = [".java", ".js", ".ts"]
-FUNCTION_PATTERNS = {
-    ".java": r"\b(?:public|private|protected)?\s*(?:static\s+)?(?:[\w<>[\]]+\s+)+(\w+)\s*\(",
-    ".js": r"function\s+(\w+)\s*\(",
-    ".ts": r"function\s+(\w+)\s*\("
-}
-
-all_files = []
-extensions = set()
-for root, dirs, files in os.walk(PORT_DIR):
-    for f in files:
-        rel_path = os.path.relpath(os.path.join(root,f), PORT_DIR)
-        ext = os.path.splitext(f)[1].lower()
-        extensions.add(ext)
-        all_files.append(rel_path)
-
-functions = {}
-for file in all_files:
-    ext = os.path.splitext(file)[1].lower()
-    if ext in FUNCTION_EXTS:
-        try:
-            with open(os.path.join(PORT_DIR,file), encoding="utf-8") as fh:
-                content = fh.read()
-            matches = re.findall(FUNCTION_PATTERNS[ext], content)
-            functions[file] = matches if matches else []
-        except Exception as e:
-            functions[file] = [f"ERROR reading file: {e}"]
-
-with open(OUTPUT_JSON, "w", encoding="utf-8") as out:
-    json.dump(functions, out, indent=2)
-
-print(f"✅ Function scan completed: {OUTPUT_JSON}")
-EOF
-
-      # 🔟 Generate build manifest
+      # 8️⃣ Generate build manifest
       - name: Generate extraction manifest
         run: |
           cd extracted-termux
           find . -type f | sort > build_manifest.txt
           cd ..
 
-      # 1️⃣1️⃣ Package modules as zip
-      - name: Package modules into zip
+      # 9️⃣ Package everything into a single zip
+      - name: Package extracted Termux
         run: |
-          cd extracted-termux
-          zip -r terminal-emulator.zip terminal-emulator
-          zip -r terminal-view.zip terminal-view
-          zip -r app.zip app
-          zip -r shared.zip shared
-          cd ..
+          zip -r extracted-termux.zip extracted-termux
 
-      # 1️⃣2️⃣ Upload artifacts
-      - name: Upload extracted Termux artifacts
+      # 🔟 Upload the artifact
+      - name: Upload extracted Termux package
         uses: actions/upload-artifact@v6
         with:
           name: extracted-termux
-          path: |
-            extracted-termux/terminal-emulator.zip
-            extracted-termux/terminal-view.zip
-            extracted-termux/app.zip
-            extracted-termux/shared.zip
-            extracted-termux/build_manifest.txt
-            extracted-termux/logs/function_scan.json
+          path: extracted-termux.zip
