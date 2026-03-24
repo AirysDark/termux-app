@@ -80,36 +80,36 @@ jobs:
         shell: bash
         run: |
           python3 - << 'EOF'
-import os, re, json
+            import os, re, json
 
-PORT_DIR = "."
-REPORT_FILE = "extracted-termux/logs/function_scan.json"
-EXTENSIONS = [".java", ".js"]
-PATTERNS = {
-    ".java": r"\b(?:public|private|protected)?\s*(?:static\s+)?(?:[\w<>[\]]+\s+)+(\w+)\s*\(",
-    ".js": r"function\s+(\w+)\s*\("
-}
+            PORT_DIR = "."
+            REPORT_FILE = "extracted-termux/logs/function_scan.json"
+            EXTENSIONS = [".java", ".js"]
+            PATTERNS = {
+                ".java": r"\b(?:public|private|protected)?\s*(?:static\s+)?(?:[\w<>[\]]+\s+)+(\w+)\s*\(",
+                ".js": r"function\s+(\w+)\s*\("
+            }
 
-functions = {}
-for root, dirs, files in os.walk(PORT_DIR):
-    for f in files:
-        ext = os.path.splitext(f)[1].lower()
-        if ext in EXTENSIONS:
-            try:
-                with open(os.path.join(root, f), encoding="utf-8") as fh:
-                    content = fh.read()
-                matches = re.findall(PATTERNS[ext], content)
-                if matches:
-                    functions[os.path.relpath(os.path.join(root, f), PORT_DIR)] = matches
-            except Exception as e:
-                print(f"⚠ Failed to read {f}: {e}")
+            functions = {}
+            for root, dirs, files in os.walk(PORT_DIR):
+                for f in files:
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext in EXTENSIONS:
+                        try:
+                            with open(os.path.join(root, f), encoding="utf-8") as fh:
+                                content = fh.read()
+                            matches = re.findall(PATTERNS[ext], content)
+                            if matches:
+                                functions[os.path.relpath(os.path.join(root, f), PORT_DIR)] = matches
+                        except Exception as e:
+                            print(f"⚠ Failed to read {f}: {e}")
 
-os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
-with open(REPORT_FILE, "w") as out:
-    json.dump(functions, out, indent=2)
+            os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
+            with open(REPORT_FILE, "w") as out:
+                json.dump(functions, out, indent=2)
 
-print(f"✅ Function scan completed: {REPORT_FILE}")
-EOF
+            print(f"✅ Function scan completed: {REPORT_FILE}")
+          EOF
 
       # 🔟 Generate build manifest
       - name: Generate extraction manifest
