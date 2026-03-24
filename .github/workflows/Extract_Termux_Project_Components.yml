@@ -67,7 +67,6 @@ jobs:
               MISSING+=("$f")
             fi
           done
-          # Validate XML layouts and extra keys
           XML_COUNT=$(find app/src/main/res -name "*.xml" | wc -l)
           echo "✅ Found $XML_COUNT XML layout files"
           if [ ${#MISSING[@]} -gt 0 ]; then
@@ -78,8 +77,9 @@ jobs:
 
       # 9️⃣ Scan Java and JS functions
       - name: Scan functions/methods
+        shell: bash
         run: |
-          python3 << 'EOF'
+          python3 - << 'EOF'
 import os, re, json
 
 PORT_DIR = "."
@@ -104,8 +104,10 @@ for root, dirs, files in os.walk(PORT_DIR):
             except Exception as e:
                 print(f"⚠ Failed to read {f}: {e}")
 
+os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
 with open(REPORT_FILE, "w") as out:
     json.dump(functions, out, indent=2)
+
 print(f"✅ Function scan completed: {REPORT_FILE}")
 EOF
 
