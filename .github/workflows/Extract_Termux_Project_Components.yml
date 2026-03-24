@@ -31,8 +31,8 @@ jobs:
       # 3️⃣ Extract Terminal Emulator
       - name: Copy Terminal Emulator
         run: |
-          cp -r terminal-emulator/terminal extracted-termux/terminal-emulator/
-          cp -r terminal-emulator/jni extracted-termux/terminal-emulator/jni
+          cp -r terminal-emulator/src/main/java/com/termux/terminal extracted-termux/terminal-emulator/terminal
+          cp -r terminal-emulator/src/main/jni extracted-termux/terminal-emulator/jni
 
       # 4️⃣ Extract Terminal View
       - name: Copy Terminal View
@@ -59,7 +59,7 @@ jobs:
       # 8️⃣ Verify critical folders & XMLs
       - name: Verify critical folders and XMLs
         run: |
-          REQUIRED_FOLDERS=("terminal-emulator/terminal" "terminal-view/view" "app/com/termux/app" "shared")
+          REQUIRED_FOLDERS=("extracted-termux/terminal-emulator/terminal" "extracted-termux/terminal-view/view" "extracted-termux/app/com/termux/app" "extracted-termux/shared")
           MISSING=()
           for f in "${REQUIRED_FOLDERS[@]}"; do
             if [ ! -d "$f" ]; then
@@ -67,7 +67,8 @@ jobs:
               MISSING+=("$f")
             fi
           done
-          XML_COUNT=$(find app/src/main/res -name "*.xml" | wc -l)
+          # Validate XML layouts and extra keys
+          XML_COUNT=$(find extracted-termux/res -name "*.xml" | wc -l)
           echo "✅ Found $XML_COUNT XML layout files"
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "⚠️ Some critical folders are missing: ${MISSING[@]}"
@@ -77,39 +78,36 @@ jobs:
 
       # 9️⃣ Scan Java and JS functions
       - name: Scan functions/methods
-        shell: bash
+        shell: python
         run: |
-          python3 - << 'EOF'
-            import os, re, json
+          import os, re, json
 
-            PORT_DIR = "."
-            REPORT_FILE = "extracted-termux/logs/function_scan.json"
-            EXTENSIONS = [".java", ".js"]
-            PATTERNS = {
-                ".java": r"\b(?:public|private|protected)?\s*(?:static\s+)?(?:[\w<>[\]]+\s+)+(\w+)\s*\(",
-                ".js": r"function\s+(\w+)\s*\("
-            }
+          PORT_DIR = "extracted-termux"
+          REPORT_FILE = os.path.join(PORT_DIR, "logs", "function_scan.json")
+          EXTENSIONS = [".java", ".js"]
+          PATTERNS = {
+              ".java": r"\b(?:public|private|protected)?\s*(?:static\s+)?(?:[\w<>[\]]+\s+)+(\w+)\s*\(",
+              ".js": r"function\s+(\w+)\s*\("
+          }
 
-            functions = {}
-            for root, dirs, files in os.walk(PORT_DIR):
-                for f in files:
-                    ext = os.path.splitext(f)[1].lower()
-                    if ext in EXTENSIONS:
-                        try:
-                            with open(os.path.join(root, f), encoding="utf-8") as fh:
-                                content = fh.read()
-                            matches = re.findall(PATTERNS[ext], content)
-                            if matches:
-                                functions[os.path.relpath(os.path.join(root, f), PORT_DIR)] = matches
-                        except Exception as e:
-                            print(f"⚠ Failed to read {f}: {e}")
+          functions = {}
+          for root, dirs, files in os.walk(PORT_DIR):
+              for f in files:
+                  ext = os.path.splitext(f)[1].lower()
+                  if ext in EXTENSIONS:
+                      try:
+                          with open(os.path.join(root, f), encoding="utf-8") as fh:
+                              content = fh.read()
+                          matches = re.findall(PATTERNS[ext], content)
+                          if matches:
+                              functions[os.path.relpath(os.path.join(root, f), PORT_DIR)] = matches
+                      except Exception as e:
+                          print(f"⚠ Failed to read {f}: {e}")
 
-            os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
-            with open(REPORT_FILE, "w") as out:
-                json.dump(functions, out, indent=2)
-
-            print(f"✅ Function scan completed: {REPORT_FILE}")
-          EOF
+          os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
+          with open(REPORT_FILE, "w") as out:
+              json.dump(functions, out, indent=2)
+          print(f"✅ Function scan completed: {REPORT_FILE}")
 
       # 🔟 Generate build manifest
       - name: Generate extraction manifest
