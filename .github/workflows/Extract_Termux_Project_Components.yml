@@ -1,0 +1,70 @@
+name: Extract Termux Project Components
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - "termux-port/**"
+
+jobs:
+  extract-termux:
+    runs-on: ubuntu-latest
+    steps:
+
+      # 1️⃣ Checkout the repo
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # 2️⃣ Prepare extraction folders
+      - name: Create extraction folder
+        run: |
+          mkdir -p extracted-termux/terminal-emulator
+          mkdir -p extracted-termux/terminal-view
+          mkdir -p extracted-termux/app
+          mkdir -p extracted-termux/shared
+          mkdir -p extracted-termux/res
+
+      # 3️⃣ Extract Terminal Emulator
+      - name: Copy Terminal Emulator
+        run: |
+          cp -r terminal-emulator/terminal extracted-termux/terminal-emulator/
+          cp -r terminal-emulator/jni extracted-termux/terminal-emulator/jni
+
+      # 4️⃣ Extract Terminal View
+      - name: Copy Terminal View
+        run: |
+          cp -r terminal-view/src/main/java/com/termux/view extracted-termux/terminal-view/view
+          cp -r terminal-view/src/main/res extracted-termux/terminal-view/res
+
+      # 5️⃣ Extract Termux App (Activities, Fragments, Settings)
+      - name: Copy Termux App
+        run: |
+          cp -r app/src/main/java/com/termux/app extracted-termux/app/com/termux/app
+          cp -r app/src/main/res extracted-termux/app/res
+
+      # 6️⃣ Extract Shared Libraries
+      - name: Copy Shared Libraries
+        run: |
+          cp -r termux-shared/src/main/java/com/termux/shared extracted-termux/shared
+
+      # 7️⃣ Copy Resources (optional, all icons, XMLs, layouts)
+      - name: Copy additional resources
+        run: |
+          cp -r app/src/main/res/* extracted-termux/res/
+
+      # 8️⃣ Generate build manifest
+      - name: Generate extraction manifest
+        run: |
+          cd extracted-termux
+          find . -type f | sort > build_manifest.txt
+          cd ..
+
+      # 9️⃣ Upload artifact
+      - name: Upload extracted Termux package
+        uses: actions/upload-artifact@v6
+        with:
+          name: extracted-termux
+          path: extracted-termux
