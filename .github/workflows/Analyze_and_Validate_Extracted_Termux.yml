@@ -1,4 +1,4 @@
-name: Extract Termux Project Components
+name: Extract Termux Emulator and App
 
 on:
   workflow_dispatch:
@@ -22,10 +22,7 @@ jobs:
       - name: Create extraction folder
         run: |
           mkdir -p extracted-termux/terminal-emulator
-          mkdir -p extracted-termux/terminal-view
           mkdir -p extracted-termux/app
-          mkdir -p extracted-termux/shared
-          mkdir -p extracted-termux/res
           mkdir -p extracted-termux/logs
 
       # 3️⃣ Extract Terminal Emulator
@@ -34,43 +31,33 @@ jobs:
           cp -r terminal-emulator/src/main/java/com/termux/terminal extracted-termux/terminal-emulator/
           cp -r terminal-emulator/src/main/jni extracted-termux/terminal-emulator/jni
 
-      # 4️⃣ Extract Terminal View
-      - name: Copy Terminal View
-        run: |
-          cp -r terminal-view/src/main/java/com/termux/view extracted-termux/terminal-view/view
-          cp -r terminal-view/src/main/res extracted-termux/terminal-view/res
-
-      # 5️⃣ Extract Termux App (Activities, Fragments, Settings)
+      # 4️⃣ Extract Termux App (Activities, Fragments, Settings)
       - name: Copy Termux App
         run: |
           cp -r app/src/main/java/com/termux/app extracted-termux/app/com/termux/app
           cp -r app/src/main/res extracted-termux/app/res
 
-      # 6️⃣ Extract Shared Libraries
-      - name: Copy Shared Libraries
-        run: |
-          cp -r termux-shared/src/main/java/com/termux/shared extracted-termux/shared
-
-      # 7️⃣ Copy Additional Resources
-      - name: Copy all app resources
-        run: |
-          cp -r app/src/main/res/* extracted-termux/res/
-
-      # 8️⃣ Generate build manifest
+      # 5️⃣ Generate build manifest
       - name: Generate extraction manifest
         run: |
           cd extracted-termux
           find . -type f | sort > build_manifest.txt
           cd ..
 
-      # 9️⃣ Package everything into a single zip
-      - name: Package extracted Termux
+      # 6️⃣ Package each module individually
+      - name: Package Terminal Emulator and App
         run: |
-          zip -r extracted-termux.zip extracted-termux
+          cd extracted-termux
+          zip -r terminal-emulator.zip terminal-emulator
+          zip -r app.zip app
+          cd ..
 
-      # 🔟 Upload the artifact
-      - name: Upload extracted Termux package
+      # 7️⃣ Upload artifacts
+      - name: Upload extracted Termux modules
         uses: actions/upload-artifact@v6
         with:
           name: extracted-termux
-          path: extracted-termux.zip
+          path: |
+            extracted-termux/terminal-emulator.zip
+            extracted-termux/app.zip
+            extracted-termux/build_manifest.txt
