@@ -1,0 +1,160 @@
+name: Deep Termux Analysis Engine
+
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ==============================
+      # CREATE ANALYZER
+      # ==============================
+      - name: Create analyzer
+        run: |
+          cat << 'EOF' > deep_analyzer.py
+          import os, json, re, shutil
+
+          ROOT = os.getcwd()
+          OUT = os.path.join(ROOT, "analysis_output")
+
+          os.makedirs(OUT, exist_ok=True)
+
+          report = {
+              "files": [],
+              "extensions": {},
+              "java_classes": {},
+              "js_functions": {},
+              "architecture": {},
+              "missing_components": [],
+          }
+
+          # -----------------------------
+          # SCAN FILES
+          # -----------------------------
+          for root, dirs, files in os.walk(ROOT):
+              for f in files:
+                  full = os.path.join(root, f)
+                  rel = os.path.relpath(full, ROOT)
+                  ext = os.path.splitext(f)[1]
+
+                  report["files"].append(rel)
+                  report["extensions"].setdefault(ext, 0)
+                  report["extensions"][ext] += 1
+
+          # -----------------------------
+          # ANALYZE JAVA
+          # -----------------------------
+          java_pattern = r"class\s+(\w+)"
+          method_pattern = r"(public|private|protected).*?\s+(\w+)\("
+
+          for file in report["files"]:
+              if file.endswith(".java"):
+                  try:
+                      content = open(file, encoding="utf-8").read()
+                      classes = re.findall(java_pattern, content)
+                      methods = re.findall(method_pattern, content)
+
+                      report["java_classes"][file] = {
+                          "classes": classes,
+                          "methods": [m[1] for m in methods]
+                      }
+                  except:
+                      pass
+
+          # -----------------------------
+          # ANALYZE JS
+          # -----------------------------
+          js_pattern = r"function\s+(\w+)\("
+
+          for file in report["files"]:
+              if file.endswith(".js"):
+                  try:
+                      content = open(file, encoding="utf-8").read()
+                      funcs = re.findall(js_pattern, content)
+                      report["js_functions"][file] = funcs
+                  except:
+                      pass
+
+          # -----------------------------
+          # DETECT ARCHITECTURE
+          # -----------------------------
+          structure = {
+              "ui": [],
+              "terminal_engine": [],
+              "shared": [],
+              "runtime": [],
+          }
+
+          for f in report["files"]:
+              if "app/src/main/java" in f:
+                  structure["ui"].append(f)
+              elif "terminal-emulator" in f:
+                  structure["terminal_engine"].append(f)
+              elif "shared" in f:
+                  structure["shared"].append(f)
+              elif f.endswith(".sh") or f.endswith(".xml"):
+                  structure["runtime"].append(f)
+
+          report["architecture"] = structure
+
+          # -----------------------------
+          # DETECT MISSING COMPONENTS
+          # -----------------------------
+          if not any("pty" in f for f in report["files"]):
+              report["missing_components"].append("PTY layer missing")
+
+          if not any("bash" in f or "shell" in f for f in report["files"]):
+              report["missing_components"].append("Shell execution missing")
+
+          if not any("terminal" in f.lower() for f in report["files"]):
+              report["missing_components"].append("Terminal renderer missing")
+
+          # -----------------------------
+          # SAVE REPORT
+          # -----------------------------
+          with open(os.path.join(OUT, "analysis.json"), "w") as f:
+              json.dump(report, f, indent=2)
+
+          # -----------------------------
+          # CREATE HUMAN REPORT
+          # -----------------------------
+          with open(os.path.join(OUT, "summary.txt"), "w") as f:
+              f.write("=== TERMUX PROJECT ANALYSIS ===\n\n")
+
+              f.write("Total Files: %d\n\n" % len(report["files"]))
+
+              f.write("Extensions:\n")
+              for k, v in report["extensions"].items():
+                  f.write(f"{k}: {v}\n")
+
+              f.write("\nMissing Components:\n")
+              for m in report["missing_components"]:
+                  f.write(f"- {m}\n")
+
+          print("Deep analysis complete")
+          EOF
+
+      - name: Run analyzer
+        run: python deep_analyzer.py
+
+      # ==============================
+      # ZIP OUTPUT
+      # ==============================
+      - name: Zip results
+        run: zip -r analysis_output.zip analysis_output
+
+      - name: Upload analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-deep-analysis
+          path: analysis_output.zip
